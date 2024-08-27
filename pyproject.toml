@@ -1,0 +1,7 @@
+[project]
+name = "image_warped_events"
+version = "0.1"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
