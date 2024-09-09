@@ -2,7 +2,7 @@ import torch
 from torch import optim
 from .image_warped_events_evaluator import ImageWarpedEventsEvaluator
 import numpy as np
-import time
+
 torch.optim.Adam([torch.zeros(1)])
 
 class CmaxOptimizer:

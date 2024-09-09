@@ -1,4 +1,3 @@
-import rospy
 import torch
 import numpy as np
 from torch.func import jacrev
@@ -252,7 +251,8 @@ class ImageWarpedEventsEvaluator:
                                                                                                 motion_params).squeeze()
 
         else:
-            rospy.logerr(f"{self.motion_model} motion model not implemented!")
+            print(f"motion model {self.motion_model} is not supported")
+
         return warped_events
 
     def loss_fn(self, motion_params, batch, depth=torch.tensor(1.)):
