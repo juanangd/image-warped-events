@@ -6,7 +6,7 @@ The **Image of Warped Events Framework** is a library designed for computing the
 
 To install the library, follow these steps:
 
-1. Clone the Repository to your local machine using and navigate up to the project directory
+1. Clone the Repository to your local machine
 2. Navigate to the parent directory
 3. Install the library executing `pip install .`
 
