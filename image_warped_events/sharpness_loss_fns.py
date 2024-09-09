@@ -5,7 +5,13 @@ import torch.nn.functional as F
 class SharpnessLossFunctionSuite():
 
     def __init__(self, sharpness_fun_type="variance", img_area_kernel="exponential"):
+        """
+        This class implements different types of loss function used for CMAX.
+        Please refer to https://arxiv.org/abs/1904.07235 for more info.
 
+        :param sharpness_fun_type:
+        :param img_area_kernel:
+        """
         self.fn_type = sharpness_fun_type
         self.img_area_kernel = img_area_kernel
         self.sobel_kernel_x = torch.Tensor([[1, 0, -1],
@@ -34,7 +40,12 @@ class SharpnessLossFunctionSuite():
         self.gaussian_kernel = self.create_centered_gaussian_kernel((5., 5), (1, 1))
 
     def fn_loss(self, image):
+        """
+        It computes the loss to the image input.
 
+        :param image:
+        :return:
+        """
         fn_type_splitted = self.fn_type.split("-")
         if len(fn_type_splitted)==1:
             return getattr(self, f'fn_{self.fn_type}')(image)

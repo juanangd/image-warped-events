@@ -8,11 +8,28 @@ torch.set_grad_enabled(True)  # Context-manager
 
 
 class ImageWarpedEventsEvaluator:
-
+    """Class to evaluate image warped events"""
     def __init__(self, camera_intrinsics, camera_intrinsics_inv, img_size, gauss_kernel_size, gaussian_sigma,
                  sharpness_function_type='variance', use_polarity=False, motion_model="rotation",
                  param_to_eval=[True, True, True], img_area_kernel="exponential", approximate_rmatrix=False,
                  use_bilinear_voting=False, iwe_padding=(10, 10), use_gpu=False):
+        """
+
+        :param camera_intrinsics: 3x3 torch.Tensor Intrinsics Matrix
+        :param camera_intrinsics_inv: 3x3 torch.Tensor Intrinsics Matrix inverted
+        :param img_size: torch.Size of the camera [height, width]
+        :param gauss_kernel_size: size of the gaussian kernel for the voting scheme
+        :param gaussian_sigma: 2x sigma of the gaussian kernel for the voting scheme (torch.Tensor)
+        :param sharpness_function_type: type of sharpness function. Check sharpness loss_fns
+        :param use_polarity: use events polarity (bool)
+        :param motion_model: Motion model to warp the events. Available = "rotation", "translation", "translation_divergence"
+        :param param_to_eval:
+        :param img_area_kernel:
+        :param approximate_rmatrix:
+        :param use_bilinear_voting:
+        :param iwe_padding:
+        :param use_gpu:
+        """
 
         self.use_polarity = use_polarity
         self.motion_model = motion_model
@@ -40,7 +57,13 @@ class ImageWarpedEventsEvaluator:
         return torch.Tensor(kernel_idx)
 
     def rotation_matrix(self, rot_vel, time):
+        """
+        Compute Rotation Matrix
 
+        :param rot_vel:
+        :param time:
+        :return: 3x3 rotation matrix
+        """
         time.to(self.device)
         rotation = rot_vel * time
 
@@ -90,6 +113,13 @@ class ImageWarpedEventsEvaluator:
             return R_matrix
 
     def rotate_event(self, event, rot_vel):
+        """
+        Rotate Event
+
+        :param event:
+        :param rot_vel:
+        :return: rotated event in subpixel resolution
+        """
         time = event[2]
         rotation_m = self.rotation_matrix(rot_vel, time)
         point_2d = torch.stack([event[0], event[1], torch.tensor(1.0)]).to(torch.float64).to(self.device)
@@ -100,7 +130,13 @@ class ImageWarpedEventsEvaluator:
         return point_2d_warped[:-1]
 
     def accumulate_events_bilinear_voting(self, warped_events, polarities):
+        """
+        Accumulate events onto a 2D image using bilinear voting
 
+        :param warped_events:
+        :param polarities:
+        :return: 2d image warped events
+        """
         iwe_size = torch.Size((self.img_size[0] + self.iwe_padding[0], self.img_size[1] + self.iwe_padding[1]))
         iwe = torch.zeros(iwe_size, dtype=torch.float64).to(self.device)
 
@@ -143,7 +179,12 @@ class ImageWarpedEventsEvaluator:
         return iwe
 
     def gaussian_event_kernel(self, warped_events):
+        """
+        Compute the voting kernel of a warped event
 
+        :param warped_events:
+        :return:
+        """
         event_int = warped_events.long()
         decimals = warped_events - event_int
         event_int = torch.where(event_int > 0.5, event_int + 1, event_int)
@@ -158,13 +199,24 @@ class ImageWarpedEventsEvaluator:
         return idx_in_img.long(), gaussian_norm
 
     def accumulate_events_wo_voting(self, events):
+        """
+        Accumulate events without voting
 
+        :param events:
+        :return: 2d image warped events
+        """
         img = torch.zeros(self.img_size, dtype=torch.float64).to(self.device)
         img = img.index_put((events[:, 1].long(), events[:, 0].long()), torch.ones((events.shape[0]))).to(self.device)
         return img
 
     def accumulate_events_gaussian_voting(self, warped_events, polarities):
+        """
+        Accumulate events with gaussian voting
 
+        :param warped_events:
+        :param polarities:
+        :return: 2d image warped events
+        """
         iwe_size = torch.Size((self.img_size[0] + self.iwe_padding[0], self.img_size[1] + self.iwe_padding[1]))
 
         img = torch.zeros(iwe_size, dtype=torch.float64).to(self.device)
@@ -194,6 +246,14 @@ class ImageWarpedEventsEvaluator:
         return img
 
     def translate_event_with_divergence(self, event, divergence):
+        """
+        Warp event using the translation-divergence model
+
+        :param event:
+        :param divergence:
+        :return: warped_event
+        """
+
 
         """event_0_centered_x = event[0] - self.camera_intrinsics[0, 2]
         event_0_centered_y = event[1] - self.camera_intrinsics[1, 2]
@@ -217,7 +277,14 @@ class ImageWarpedEventsEvaluator:
         return torch.stack([event_warped_x, event_warped_y])
 
     def translate_event(self, event, tran_vel, depth):
+        """
+        Warp event using translation model
 
+        :param event:
+        :param tran_vel:
+        :param depth:
+        :return: warped_event
+        """
         tran_vel_mod = torch.stack(
             [
                 tran_vel[0] if self.param_to_eval[0] else torch.tensor(0.),
@@ -238,7 +305,14 @@ class ImageWarpedEventsEvaluator:
         return torch.stack([x_warped, y_warped])
 
     def events_warping(self, events, motion_params, depth=torch.tensor(1.)):
+        """
+        Warp events using the motion parameters and the set motion model
 
+        :param events:
+        :param motion_params:
+        :param depth:
+        :return: events warped
+        """
         # The events are assuming to be referenced agains the first event time. so the first event timestamp is always 0
         if self.motion_model == "rotation":
             warped_events = torch.vmap(self.rotate_event, in_dims=(0, None))(events, motion_params)
@@ -256,12 +330,27 @@ class ImageWarpedEventsEvaluator:
         return warped_events
 
     def loss_fn(self, motion_params, batch, depth=torch.tensor(1.)):
+        """
+        It evaluates the loss function, taking as input the events and motion parameter
+
+        :param motion_params:
+        :param batch:
+        :param depth:
+        :return:
+        """
 
         iwe = self.compute_iwe(motion_params, batch, depth)
         return self.sharpness_function.fn_loss(iwe)
 
     def compute_iwe(self, motion_params, batch, depth=torch.tensor(1.)):
+        """
+        Computes the image of warped events
 
+        :param motion_params:
+        :param batch:
+        :param depth:
+        :return:
+        """
         warped_events = self.events_warping(batch, motion_params, depth)
         polarities = torch.where(batch[:, 3] > 0, 1., -1.).to(self.device)
         if self.use_bilinear_voting:
@@ -274,7 +363,14 @@ class ImageWarpedEventsEvaluator:
         return iwe
 
     def jacobian_loss_fn(self, motion_params, batch, depth=torch.tensor(1.)):
+        """
+        Computes the derivative of df/dm evaluated on a particula point
 
+        :param motion_params:
+        :param batch:
+        :param depth:
+        :return:
+        """
         torch.cuda.empty_cache()
         motion_params.to(self.device)
         batch.to(self.device)
