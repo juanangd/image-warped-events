@@ -2,7 +2,7 @@
 name = "image_warped_events"
 version = "0.1"
 dependencies = [
-  "torch>=2.4.1",
+  "torch>=2.2.1",
   "torchvision>=0.19.1",
   "numpy>=1.24.4",
 ]
